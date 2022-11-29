@@ -9,7 +9,7 @@ import os
 
 def get_pfms_path(path, result):
     for filename in os.listdir(path):
-        file_path=path+filename
+        file_path = path + filename
         if os.path.isdir(file_path):
             get_pfms_path(file_path + "/" , result)
         else:
