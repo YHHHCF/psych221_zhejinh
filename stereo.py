@@ -5,11 +5,17 @@ from mpl_toolkits.mplot3d import Axes3D
 import time
 import os
 
-# 1 for debug (to run on 1 data), 0 for non-debug (to run on 24 data)
+############################ experiment parameters ############################
+# 1 for debug (to run on 1 data), 0 for non-debug (to run on all 24 data)
 debug = 1
 
 # 1 to run and save results, 0 to load and plot results
-compute = 0
+compute = 1
+
+data_path = './data/' # input dataset
+result_path = './result/SGBM' # for either saving or loading
+algorithm = 'StereoSGBM' # the algorithm to be evaluated
+###############################################################################
 
 def gt_stereo_is_valid(value):
     return value != float("inf")
@@ -19,38 +25,9 @@ def output_stereo_is_valid(value):
 
 def eval(algorithm, numDisparities, blockSize, path):
     if algorithm == "StereoBM":
-        stereo = cv.StereoBM_create(numDisparities, blockSize)
+        stereo = cv.StereoBM_create(numDisparities=numDisparities, blockSize=blockSize)
     elif algorithm == "StereoSGBM":
-        blockSize = 11
-        # min_disp = -128
-        # max_disp = 128
-        # # Maximum disparity minus minimum disparity. The value is always greater than zero.
-        # # In the current implementation, this parameter must be divisible by 16.
-        # num_disp = max_disp - min_disp
-        # # Margin in percentage by which the best (minimum) computed cost function value should "win" the second best value to consider the found match correct.
-        # # Normally, a value within the 5-15 range is good enough
-        # uniquenessRatio = 5
-        # # Maximum size of smooth disparity regions to consider their noise speckles and invalidate.
-        # # Set it to 0 to disable speckle filtering. Otherwise, set it somewhere in the 50-200 range.
-        # speckleWindowSize = 200
-        # # Maximum disparity variation within each connected component.
-        # # If you do speckle filtering, set the parameter to a positive value, it will be implicitly multiplied by 16.
-        # # Normally, 1 or 2 is good enough.
-        speckleRange = 2
-        # disp12MaxDiff = 0
-
-        stereo = cv.StereoSGBM_create(
-            # minDisparity=min_disp,
-            numDisparities=numDisparities,
-            blockSize=blockSize,
-            # uniquenessRatio=uniquenessRatio,
-            # speckleWindowSize=speckleWindowSize,
-            speckleRange=speckleRange,
-            # disp12MaxDiff=disp12MaxDiff,
-            # P1=8 * 1 * blockSize * blockSize,
-            # P2=32 * 1 * blockSize * blockSize,
-        )
-        # stereo = cv.StereoSGBM_create(numDisparities, blockSize)
+        stereo = cv.StereoSGBM_create(numDisparities=numDisparities, blockSize=blockSize)
     else:
         raise Exception("Algorithm must be either StereoBM or StereoSGBM")
 
@@ -60,6 +37,9 @@ def eval(algorithm, numDisparities, blockSize, path):
     output_error_ratio_avg = 0.0
 
     for folder_name in os.listdir(path):
+        if (folder_name == ".DS_Store"):
+            continue
+
         num_dataset += 1
         folder_name = path + folder_name
         img0 = cv.imread(folder_name + '/im0.png', 0) # left
@@ -98,7 +78,7 @@ def eval(algorithm, numDisparities, blockSize, path):
 
         # if debug, process and show result on only 1 data and exit
         if debug:
-            cv.imwrite('./data/artroom1/disparity.tiff', output_disparity)
+            cv.imwrite(folder_name + '/disparity_' + algorithm + '_' + str(numDisparities) + '_' + str(blockSize) + '.tiff', output_disparity)
             break;
 
     latency_avg_ms /= num_dataset
@@ -108,13 +88,10 @@ def eval(algorithm, numDisparities, blockSize, path):
     return latency_avg_ms, output_valid_ratio_avg, output_error_ratio_avg
 
 if __name__ == '__main__':
-    data_path = './data/'
-    result_path = './result/'
-
     if compute:
         # compute and save the results
-        numDisparitiesList = np.array([16, 32, 48])
-        blockSizeList = np.array([5, 25])
+        numDisparitiesList = np.array([16, 128, 256])
+        blockSizeList = np.array([5, 21, 41])
 
         latency_result = np.zeros((blockSizeList.size, numDisparitiesList.size))
         recall_result = np.zeros((blockSizeList.size, numDisparitiesList.size))
@@ -124,8 +101,8 @@ if __name__ == '__main__':
             numDisparities = numDisparitiesList[i]
             for j in range(blockSizeList.size):
                 blockSize = blockSizeList[j]
-                print(f">>> experiment for numDisparities = {numDisparities} and blockSize = {blockSize}")
-                latency_avg_ms, output_valid_ratio_avg, output_error_ratio_avg = eval("StereoBM", numDisparities, blockSize, data_path)
+                print(f">>> {algorithm} experiment for numDisparities = {numDisparities} and blockSize = {blockSize}")
+                latency_avg_ms, output_valid_ratio_avg, output_error_ratio_avg = eval(algorithm, numDisparities, blockSize, data_path)
                 print(f"average latency: {latency_avg_ms:.1f} ms")
                 print(f"average relative error: {output_error_ratio_avg * 100:.2f}%")
                 print(f"average recall: {output_valid_ratio_avg * 100:.2f}%")
